@@ -142,6 +142,8 @@ class API:
                 resp = Response(self._utils.getBlockDBHash())
             elif action == 'getBlockHashes':
                 resp = Response(self._core.getBlockList())
+            elif action == 'directMessage':
+                resp = Response(self._core.direct_message(data))
             # setData should be something the communicator initiates, not this api
             elif action == 'getData':
                 resp = self._core.getData(data)

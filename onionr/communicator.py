@@ -19,7 +19,7 @@ and code to operate as a daemon, getting commands from the command queue databas
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
-import sqlite3, requests, hmac, hashlib, time, sys, os, math, logger, urllib.parse, random
+import sqlite3, requests, hmac, hashlib, time, sys, os, math, logger, urllib.parse, secrets
 import core, onionrutils, onionrcrypto, onionrproofs, btc, config, onionrplugins as plugins
 
 class OnionrCommunicate:
@@ -49,7 +49,7 @@ class OnionrCommunicate:
         blockProcessAmount = 5
         heartBeatTimer = 0
         heartBeatRate = 5
-        pexTimer = 5 # How often we should check for new peers
+        pexTimer = 900 # How often we should check for new peers
         pexCount = 0
         logger.debug('Communicator debugging enabled.')
         torID = open('data/hs/hostname').read()
@@ -70,7 +70,6 @@ class OnionrCommunicate:
             pexCount += 1
             if pexTimer == pexCount:
                 self.getNewPeers()
-                pexCount = 0
             if heartBeatRate == heartBeatTimer:
                 logger.debug('Communicator heartbeat')
                 heartBeatTimer = 0
@@ -86,50 +85,86 @@ class OnionrCommunicate:
 
         return
 
+future_callbacks = {}
+
+    def direct_connect(self, peer, data = None, callback = None, log = True):
+        '''
+            Communicates something directly with the client
+
+            - `peer` should obviously be the peer id to request.
+            - `data` should be a dict (NOT str), with the parameter "type"
+              ex. {'type': 'sendMessage', 'content': 'hey, this is a dm'}
+              In that dict, the keys 'token' and 'id' must NEVER be set. If they
+              are, they will be overwritten.
+            - if `callback` is set to a function, it will call that function
+              back if/when the client the request is sent to decides to respond.
+              Do NOT depend on a response, because users can configure their
+              clients not to respond to this type of request.
+            - `log` is set to True by default-- what this does is log the
+              request for debug purposes. Should be False for sensitive actions.
+        '''
+
+        try:
+            identifier = secrets.token_hex(16) # does not need to be secure random, only used for keeping track of async responses
+
+            data['id'] = identifier
+            data['token'] = '' # later put
+            data_str = json.dumps(data)
+
+            logger.debug('Direct connection (identifier: "' + identifier + '")-- content = ' + data_str)
+            try:
+                performGet('directMessage', peer, data_str)
+            except:
+                logger.warn('Failed to connect to peer: "' + str(peer) + '".')
+                return False
+
+            if not callback is None:
+                self.future_callbacks[identifier] = callback
+
+            return True
+        except:
+            logger.warn('Unknown error, failed to execute direct connect (peer: "' + str(peer) + '").')
+
+        return False
+
+    def check_callbacks(self, data, execute = True, remove = True):
+        '''
+            Check if a callback is set, and if so, execute it
+        '''
+
+        if type(data) is str:
+            data = json.loads(data)
+
+        if 'id' in data:
+            identifier = data['id']
+
+            if identifier in self.future_callbacks:
+                if execute:
+                    future_callbacks[identifier](data)
+                    logger.debug('Request callback "' + str(identifier) + '" executed.')
+                if remove:
+                    del future_callbacks[identifier]
+
+                return True
+
+            logger.warn('Unable to find request callback for ID "' + str(identifier) + '".')
+        else:
+            logger.warn('Unable to identify callback request-- content = ' + json.dumps(data))
+
+        return False
+
     def getNewPeers(self):
         '''
             Get new peers
         '''
-        peersCheck = 5 # Amount of peers to ask for new peers + keys
-        peersChecked = 0
-        peerList = list(self._core.listAdders()) # random ordered list of peers
-        newKeys = []
-        newAdders = []
-        if len(peerList) > 0:
-            maxN = len(peerList) - 1
-        else:
-            peersCheck = 0
-            maxN = 0
 
-        if len(peerList) > peersCheck:
-            peersCheck = len(peerList)
-
-        while peersCheck > peersChecked:
-            i = random.randint(0, maxN)
-            logger.info('Using ' + peerList[i] + ' to find new peers')
-            try:
-                newAdders = self.performGet('pex', peerList[i])
-                self._utils.mergeAdders(newAdders)
-            except requests.exceptions.ConnectionError:
-                logger.info(peerList[i] + ' connection failed')
-                continue
-            else:
-                try:
-                    logger.info('Using ' + peerList[i] + ' to find new keys')
-                    newKeys = self.performGet('kex', peerList[i])
-                    # TODO: Require keys to come with POW token (very large amount of POW)
-                    self._utils.mergeKeys(newKeys)
-                except requests.exceptions.ConnectionError:
-                    logger.info(peerList[i] + ' connection failed')
-                    continue
-                else:
-                    peersChecked += 1
         return
 
     def lookupBlocks(self):
         '''
             Lookup blocks and merge new ones
         '''
+
         peerList = self._core.listAdders()
         blocks = ''
         for i in peerList:

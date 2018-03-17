@@ -17,7 +17,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
-import sqlite3, os, sys, time, math, base64, tarfile, getpass, simplecrypt, hashlib, nacl, logger
+import sqlite3, os, sys, time, math, base64, tarfile, getpass, simplecrypt, hashlib, nacl, logger, json
 #from Crypto.Cipher import AES
 #from Crypto import Random
 import netcontroller
@@ -36,6 +36,7 @@ class Core:
         '''
             Initialize Core Onionr library
         '''
+
         self.queueDB = 'data/queue.db'
         self.peerDB = 'data/peers.db'
         self.blockDB = 'data/blocks.db'
@@ -48,7 +49,7 @@ class Core:
             os.mkdir('data/blocks/')
         if not os.path.exists(self.blockDB):
             self.createBlockDB()
-            
+
         self._utils = onionrutils.OnionrUtils(self)
         # Initialize the crypto object
         self._crypto = onionrcrypto.OnionrCrypto(self)
@@ -61,6 +62,7 @@ class Core:
 
             DOES NO SAFETY CHECKS if the ID is valid, but prepares the insertion
         '''
+
         # This function simply adds a peer to the DB
         if not self._utils.validatePubKey(peerID):
             return False
@@ -73,7 +75,10 @@ class Core:
         return True
 
     def addAddress(self, address):
-        '''Add an address to the address database (only tor currently)'''
+        '''
+            Add an address to the address database (only tor currently)
+        '''
+
         if self._utils.validateID(address):
             conn = sqlite3.connect(self.addressDB)
             c = conn.cursor()
@@ -86,7 +91,10 @@ class Core:
             return False
 
     def removeAddress(self, address):
-        '''Remove an address from the address database'''
+        '''
+            Remove an address from the address database
+        '''
+
         if self._utils.validateID(address):
             conn = sqlite3.connect(self.addressDB)
             c = conn.cursor()
@@ -96,7 +104,7 @@ class Core:
             conn.close()
             return True
         else:
-            return False 
+            return False
 
     def createAddressDB(self):
         '''
@@ -107,6 +115,7 @@ class Core:
                 2: Tor v2 (like facebookcorewwwi.onion)
                 3: Tor v3
         '''
+
         conn = sqlite3.connect(self.addressDB)
         c = conn.cursor()
         c.execute('''CREATE TABLE adders(
@@ -126,6 +135,7 @@ class Core:
         '''
             Generate the peer sqlite3 database and populate it with the peers table.
         '''
+
         # generate the peer database
         conn = sqlite3.connect(self.peerDB)
         c = conn.cursor()
@@ -154,6 +164,7 @@ class Core:
             dataFound - if the data has been found for the block
             dataSaved - if the data has been saved for the block
         '''
+
         if os.path.exists(self.blockDB):
             raise Exception("Block database already exists")
         conn = sqlite3.connect(self.blockDB)
@@ -177,6 +188,7 @@ class Core:
 
             Should be in hex format!
         '''
+
         if not os.path.exists(self.blockDB):
             raise Exception('Block db does not exist')
         if self._utils.hasBlock(newHash):
@@ -199,6 +211,7 @@ class Core:
         '''
             Simply return the data associated to a hash
         '''
+
         try:
             dataFile = open(self.blockDataLocation + hash + '.dat')
             data = dataFile.read()
@@ -212,6 +225,7 @@ class Core:
         '''
             Set the data assciated with a hash
         '''
+
         data = data.encode()
         hasher = hashlib.sha3_256()
         hasher.update(data)
@@ -239,6 +253,7 @@ class Core:
         '''
             Encrypt the data directory on Onionr shutdown
         '''
+
         if os.path.exists('data.tar'):
             os.remove('data.tar')
         tar = tarfile.open("data.tar", "w")
@@ -256,6 +271,7 @@ class Core:
         '''
             Decrypt the data directory on startup
         '''
+
         if not os.path.exists('data-encrypted.dat'):
             return (False, 'encrypted archive does not exist')
         data = open('data-encrypted.dat', 'rb').read()
@@ -277,6 +293,7 @@ class Core:
 
             This function intended to be used by the client. Queue to exchange data between "client" and server.
         '''
+
         retData = False
         if not os.path.exists(self.queueDB):
             conn = sqlite3.connect(self.queueDB)
@@ -302,6 +319,7 @@ class Core:
         '''
             Add a command to the daemon queue, used by the communication daemon (communicator.py)
         '''
+
         # Intended to be used by the web server
         date = math.floor(time.time())
         conn = sqlite3.connect(self.queueDB)
@@ -317,6 +335,7 @@ class Core:
         '''
             Clear the daemon queue (somewhat dangerous)
         '''
+
         conn = sqlite3.connect(self.queueDB)
         c = conn.cursor()
         try:
@@ -327,11 +346,12 @@ class Core:
         conn.close()
 
         return
-    
+
     def listAdders(self, randomOrder=True, i2p=True):
         '''
             Return a list of addresses
         '''
+
         conn = sqlite3.connect(self.addressDB)
         c = conn.cursor()
         if randomOrder:
@@ -350,6 +370,7 @@ class Core:
 
             randomOrder determines if the list should be in a random order
         '''
+
         conn = sqlite3.connect(self.peerDB)
         c = conn.cursor()
         if randomOrder:
@@ -375,6 +396,7 @@ class Core:
             bytesStored int,    5
             trust int           6
         '''
+
         conn = sqlite3.connect(self.peerDB)
         c = conn.cursor()
         command = (peer,)
@@ -397,6 +419,7 @@ class Core:
         '''
             Update a peer for a key
         '''
+
         conn = sqlite3.connect(self.peerDB)
         c = conn.cursor()
         command = (data, peer)
@@ -420,6 +443,7 @@ class Core:
             DBHash text, 5
             failure int 6
         '''
+
         conn = sqlite3.connect(self.addressDB)
         c = conn.cursor()
         command = (address,)
@@ -441,6 +465,7 @@ class Core:
         '''
             Update an address for a key
         '''
+
         conn = sqlite3.connect(self.addressDB)
         c = conn.cursor()
         command = (data, address)
@@ -452,10 +477,30 @@ class Core:
         conn.close()
         return
 
+    def direct_message(self, data):
+        '''
+            Handles direct messages
+        '''
+
+        data = json.loads(data)
+
+        do_callback = False
+        callback_data = {'id': data['id'], 'callback': True}
+
+        if 'callback' in data and data['callback'] is True:
+            # then this is a callback from a response we sent earlier
+
+            communicator.handle_callbacks(data, config.get('dc_execcallbacks', True))
+        else:
+
+        if config.get('dc_response', True) and do_callback:
+            communicator.direct_connect()
+
     def getBlockList(self, unsaved=False):
         '''
             Get list of our blocks
         '''
+
         conn = sqlite3.connect(self.blockDB)
         c = conn.cursor()
         retData = ''
@@ -473,6 +518,7 @@ class Core:
         '''
             Returns a list of blocks by the type
         '''
+
         conn = sqlite3.connect(self.blockDB)
         c = conn.cursor()
         retData = ''
