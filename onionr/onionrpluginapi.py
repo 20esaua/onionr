@@ -45,6 +45,9 @@ class PluginAPI:
     
     def get_commandapi(self):
         return self.command
+        
+    def is_development_mode(self):
+        return self.get_onionr()._developmentMode
 
     class DaemonAPI:
         def __init__(self, pluginapi):
