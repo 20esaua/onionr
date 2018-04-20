@@ -41,9 +41,6 @@ ONIONR_VERSION = '0.0.0' # for debugging and stuff
 API_VERSION = '1' # increments of 1; only change when something fundemental about how the API works changes. This way other nodes knows how to communicate without learning too much information about you.
 
 class Onionr:
-    cmds = {}
-    cmdhelp = {}
-
     def __init__(self):
         '''
             Main Onionr class. This is for the CLI program, and does not handle much of the logic.
@@ -210,10 +207,16 @@ class Onionr:
         return self.cmdhelp
 
     def addCommand(self, command, function):
-        cmds[str(command).lower()] = function
+        self.cmds[str(command).lower()] = function
 
     def addHelp(self, command, description):
-        cmdhelp[str(command).lower()] = str(description)
+        self.cmdhelp[str(command).lower()] = str(description)
+        
+    def delCommand(self, command):
+        return self.cmds.pop(str(command).lower(), None)
+        
+    def delHelp(self, command):
+        return self.cmdhelp.pop(str(command).lower(), None)
 
     def configure(self):
         '''
@@ -243,6 +246,8 @@ class Onionr:
 
         command = commands.get(argument, self.notFound)
         command()
+        
+        return
 
     '''
         THIS SECTION DEFINES THE COMMANDS
@@ -257,6 +262,8 @@ class Onionr:
             logger.info(ONIONR_TAGLINE)
         if verbosity >= 2:
             logger.info('Running on ' + platform.platform() + ' ' + platform.release())
+            
+        return
 
     def sendEncrypt(self):
         '''
