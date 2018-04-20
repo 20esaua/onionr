@@ -369,7 +369,7 @@ class Onionr:
         if len(sys.argv) >= 3:
             plugin_name = sys.argv[2]
             logger.info('Enabling plugin \"' + plugin_name + '\"...')
-            plugins.enable(plugin_name)
+            plugins.enable(plugin_name, self)
         else:
             logger.info(sys.argv[0] + ' ' + sys.argv[1] + ' <plugin>')
 
@@ -383,7 +383,7 @@ class Onionr:
         if len(sys.argv) >= 3:
             plugin_name = sys.argv[2]
             logger.info('Disabling plugin \"' + plugin_name + '\"...')
-            plugins.disable(plugin_name)
+            plugins.disable(plugin_name, self)
         else:
             logger.info(sys.argv[0] + ' ' + sys.argv[1] + ' <plugin>')
 
@@ -397,11 +397,11 @@ class Onionr:
         if len(sys.argv) >= 3:
             plugin_name = sys.argv[2]
             logger.info('Reloading plugin \"' + plugin_name + '\"...')
-            plugins.stop(plugin_name)
-            plugins.start(plugin_name)
+            plugins.stop(plugin_name, self)
+            plugins.start(plugin_name, self)
         else:
             logger.info('Reloading all plugins...')
-            plugins.reload()
+            plugins.reload(self)
 
         return
 
