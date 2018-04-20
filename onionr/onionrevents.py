@@ -23,14 +23,14 @@ import config, logger, onionrplugins as plugins, onionrpluginapi as pluginapi
 def get_pluginapi(onionr):
     return pluginapi.PluginAPI(onionr)
 
-def event(event_name, data = None, pluginapi = None):
+def event(event_name, data = None, onionr = None):
     '''
         Calls an event on all plugins (if defined)
     '''
 
     for plugin in plugins.get_enabled_plugins():
         try:
-            call(plugins.get_plugin(plugin), event_name, data, pluginapi)
+            call(plugins.get_plugin(plugin), event_name, data, self.get_pluginapi(onionr))
         except:
             logger.warn('Event \"' + event_name + '\" failed for plugin \"' + plugin + '\".')
 
