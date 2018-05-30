@@ -57,6 +57,7 @@ class Block:
         self.signature = None
         self.signedData = None
         self.blockFile = None
+        self.parent = None
         self.bheader = {}
         self.bmetadata = {}
 
@@ -113,6 +114,7 @@ class Block:
             self.btype = self.getMetadata('type')
             self.powHash = self.getMetadata('powHash')
             self.powToken = self.getMetadata('powToken')
+            self.parent = self.getMetadata('parent')
             self.signed = ('sig' in self.getHeader() and self.getHeader('sig') != '')
             self.signature = (None if not self.isSigned() else self.getHeader('sig'))
             self.signedData = (None if not self.isSigned() else self.getHeader('meta') + '\n' + self.getContent())
@@ -120,6 +122,8 @@ class Block:
 
             if not self.getDate() is None:
                 self.date = datetime.datetime.fromtimestamp(self.getDate())
+            if not self.getParent() is None:
+                self.parent = Block(self.getParent())
 
             self.valid = True
             return True
@@ -274,6 +278,16 @@ class Block:
         '''
 
         return self.blockFile
+    
+    def getParent(self):
+        '''
+            Returns the Block object of the parent block if any
+            
+            Outputs:
+            - (Block): the Block object of the parent, or None
+        '''
+        
+        return self.parent
 
     def isValid(self):
         '''
@@ -363,6 +377,23 @@ class Block:
         '''
 
         self.bcontent = str(bcontent)
+        return self
+    
+    def setParent(self, parent):
+        '''
+            Sets the block's parent
+
+            Inputs:
+            - parent (Block/str): the instance of the parent Block, or the hash of the parent block
+
+            Outputs:
+            - (Block): the block instance
+        '''
+
+        if type(parent) == str:
+            parent = Block(parent)
+        
+        self.parent = parent
         return self
 
     # static
